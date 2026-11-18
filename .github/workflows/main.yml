@@ -1,0 +1,32 @@
+name: build-dll
+on:
+  push:
+  workflow_dispatch:
+defaults:
+  run:
+    working-directory: carplay_build
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Telecharger le SDK SCS
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Lihis/scs-sdk/archive/HEAD.zip -OutFile sdk.zip
+          Expand-Archive sdk.zip sdk
+          $h = Get-ChildItem sdk -Recurse -Filter scssdk_telemetry.h | Select-Object -First 1
+          "INC=$($h.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Compiler la DLL
+        shell: cmd
+        run: cl /nologo /TP /O2 /LD /W3 /I"%INC%" carplay_plugin.c user32.lib ws2_32.lib /Fe:carplay_plugin.dll /link /DEF:carplay_plugin.def
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carplay-plugin
+          path: |
+            carplay_build/carplay_plugin.dll
+            carplay_build/carplay_plugin.ini
+            carplay_build/carplay.html
