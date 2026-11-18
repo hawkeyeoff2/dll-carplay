@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CarPlay ETS2</title>
+<style>
+:root{--bg:#0b0b12;--card:#1a1a26;--card2:#232334;--txt:#fff;--mut:#8b8ba3;--acc:#ff7a3c;--ok:#34d399}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden}
+#app{display:grid;grid-template-columns:84px 1fr 320px;grid-template-rows:1fr 74px;gap:12px;height:100%;padding:12px}
+.card{background:var(--card);border-radius:22px;position:relative;overflow:hidden}
+#side{grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px 0;justify-content:space-between}
+#side .b{width:56px;height:56px;border-radius:16px;border:0;background:var(--card2);color:var(--txt);font-size:24px;cursor:pointer}
+#side .b.on{background:var(--acc)}
+#clock{font-size:18px;font-weight:600;color:var(--mut)}
+#map{width:100%;height:100%;display:block}
+#mapbtns{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:8px}
+#mapbtns button{width:46px;height:46px;border-radius:14px;border:0;background:rgba(35,35,52,.9);color:#fff;font-size:22px;cursor:pointer}
+#status{position:absolute;left:14px;top:12px;font-size:13px;padding:5px 12px;border-radius:999px;background:rgba(35,35,52,.9);color:var(--mut)}
+#status.ok{color:var(--ok)}
+#right{display:flex;flex-direction:column;gap:12px}
+#spd{padding:18px;text-align:center}
+#spdv{font-size:96px;font-weight:700;line-height:1}
+#spdu{color:var(--mut);margin-top:2px}
+#lim{margin:12px auto 0;width:74px;height:74px;border-radius:50%;border:7px solid #e5322d;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700}
+#lim.none{opacity:.18}
+#job{padding:18px;flex:1;display:flex;flex-direction:column;gap:6px}
+.lbl{font-size:12px;letter-spacing:.12em;color:var(--mut)}
+.city{font-size:26px;font-weight:600}
+.arrow{color:var(--acc);font-size:18px}
+#bar{height:8px;border-radius:6px;background:var(--card2);overflow:hidden;margin:8px 0 2px}
+#barf{height:100%;width:0;background:var(--acc);transition:width .4s}
+.row{display:flex;justify-content:space-between;color:var(--mut);font-size:15px}
+.row b{color:var(--txt);font-weight:600}
+#media{grid-column:2/4;display:flex;align-items:center;justify-content:center;gap:28px}
+#media button{background:var(--card2);border:0;color:#fff;border-radius:18px;width:84px;height:52px;font-size:24px;cursor:pointer}
+#media button:active,#side .b:active,#mapbtns button:active{transform:scale(.94)}
+#media .big{background:var(--acc);width:110px}
+#media span{color:var(--mut);font-size:13px;position:absolute;left:24px}
+@media (max-width:820px){#app{grid-template-columns:1fr;grid-template-rows:1fr auto 74px}#side{display:none}#right{flex-direction:row}#media{grid-column:1}#spdv{font-size:56px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side" class="card">
+    <div id="clock">--:--</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <button class="b on" id="bHead" title="Carte : cap en haut">🧭</button>
+      <button class="b" id="bClear" title="Effacer la trace">🧹</button>
+    </div>
+    <div style="font-size:11px;color:var(--mut)">ETS2</div>
+  </div>
+
+  <div class="card" id="mapc">
+    <canvas id="map"></canvas>
+    <div id="status">En attente du jeu…</div>
+    <div id="mapbtns"><button id="zin">+</button><button id="zout">−</button></div>
+  </div>
+
+  <div id="right">
+    <div class="card" id="spd">
+      <div id="spdv">0</div><div id="spdu">km/h</div>
+      <div id="lim" class="none">–</div>
+    </div>
+    <div class="card" id="job">
+      <div class="lbl">MISSION</div>
+      <div id="jobNone" style="color:var(--mut);margin-top:10px">Aucune mission</div>
+      <div id="jobBox" style="display:none">
+        <div class="city" id="from">—</div>
+        <div class="arrow">▼ vers</div>
+        <div class="city" id="to">—</div>
+        <div id="bar"><div id="barf"></div></div>
+        <div class="row"><span>Cargaison</span><b id="cargo">—</b></div>
+        <div class="row"><span>Distance</span><b id="dist">—</b></div>
+        <div class="row"><span>Arrivée dans</span><b id="eta">—</b></div>
+        <div class="row"><span>Autonomie</span><b id="fuel">—</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="media">
+    <span>Musique du PC</span>
+    <button data-c="prev">⏮</button>
+    <button data-c="play" class="big">⏯</button>
+    <button data-c="next">⏭</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const DEMO = q.has('demo');
+  // Page servie par le plugin => URL relative ; sinon (fichier ouvert directement) => localhost
+  const BASE = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:' + (q.get('port') || 8777);
+  const $ = id => document.getElementById(id);
+
+  let headUp = true, zoom = 0.25;           // pixels par mètre
+  let trail = [], last = null, startDist = 0, okAt = 0;
+  const cv = $('map'), ctx = cv.getContext('2d');
+
+  function resize(){
+    const r = cv.parentElement.getBoundingClientRect(), d = devicePixelRatio || 1;
+    cv.width = r.width * d; cv.height = r.height * d; cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px';
+  }
+  addEventListener('resize', resize); resize();
+
+  $('zin').onclick  = () => zoom = Math.min(zoom * 1.5, 4);
+  $('zout').onclick = () => zoom = Math.max(zoom / 1.5, 0.01);
+  $('bHead').onclick = e => { headUp = !headUp; e.target.classList.toggle('on', headUp); };
+  $('bClear').onclick = () => trail = [];
+  document.querySelectorAll('#media button').forEach(b => b.onclick = () => { fetch(BASE + '/media?cmd=' + b.dataset.c).catch(()=>{}); });
+
+  const fmtT = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60); return h ? `${h} h ${String(m).padStart(2,'0')}` : `${m} min`; };
+
+  function update(d){
+    okAt = Date.now();
+    $('spdv').textContent = Math.round(Math.abs(d.speed));
+    const lim = Math.round(d.limit);
+    $('lim').textContent = lim > 0 ? lim : '–'; $('lim').classList.toggle('none', !(lim > 0));
+    const gt = d.gameTime|0; $('clock').textContent = String(Math.floor(gt/60)%24).padStart(2,'0') + ':' + String(gt%60).padStart(2,'0');
+
+    const job = !!d.to;
+    $('jobNone').style.display = job ? 'none' : ''; $('jobBox').style.display = job ? '' : 'none';
+    if (job){
+      $('from').textContent = d.from; $('to').textContent = d.to; $('cargo').textContent = d.cargo || '—';
+      if (d.navDist > startDist || !startDist) startDist = d.navDist;
+      $('dist').textContent = Math.round(d.navDist/1000) + ' km';
+      $('eta').textContent = fmtT(d.navTime);
+      $('barf').style.width = startDist > 0 ? Math.max(0, Math.min(100, 100*(1 - d.navDist/startDist))) + '%' : '0';
+    } else startDist = 0;
+    $('fuel').textContent = d.fuelRange > 0 ? Math.round(d.fuelRange) + ' km' : '—';
+
+    last = d;
+    const p = trail[trail.length-1];
+    if (!p || Math.hypot(d.x-p[0], d.z-p[1]) > 15){ trail.push([d.x, d.z]); if (trail.length > 4000) trail.shift(); }
+  }
+
+  function draw(){
+    requestAnimationFrame(draw);
+    const on = Date.now() - okAt < 2500;
+    const st = $('status'); st.textContent = on ? (DEMO ? 'Mode démo' : 'Connecté au jeu') : 'En attente du jeu…'; st.classList.toggle('ok', on);
+    const W = cv.width, H = cv.height, d = devicePixelRatio || 1;
+    ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#14141f'; ctx.fillRect(0,0,W,H);
+    if (!last) return;
+
+    // heading : 0 = nord, sens anti-horaire (0..1)
+    const th = last.heading * Math.PI * 2, s = zoom * d;
+    ctx.save();
+    ctx.translate(W/2, H*0.62);
+    if (headUp) ctx.rotate(th);
+    ctx.scale(s, s);
+    ctx.translate(-last.x, -last.z);
+
+    // grille (tous les 1 km)
+    ctx.strokeStyle = '#1f1f2e'; ctx.lineWidth = 1/s;
+    const gs = 1000, r = Math.max(W,H)/s;
+    for (let gx = Math.floor((last.x-r)/gs)*gs; gx < last.x+r; gx += gs){ ctx.beginPath(); ctx.moveTo(gx,last.z-r); ctx.lineTo(gx,last.z+r); ctx.stroke(); }
+    for (let gz = Math.floor((last.z-r)/gs)*gs; gz < last.z+r; gz += gs){ ctx.beginPath(); ctx.moveTo(last.x-r,gz); ctx.lineTo(last.x+r,gz); ctx.stroke(); }
+
+    // trace du parcours
+    if (trail.length > 1){
+      ctx.lineJoin = ctx.lineCap = 'round'; ctx.strokeStyle = '#ff7a3c'; ctx.lineWidth = 7/s;
+      ctx.beginPath(); trail.forEach((p,i) => i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1])); ctx.stroke();
+    }
+    ctx.restore();
+
+    // camion (flèche) : au centre si cap en haut, sinon tournée selon le cap
+    ctx.save(); ctx.translate(W/2, H*0.62);
+    if (!headUp) ctx.rotate(-th);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#ff7a3c'; ctx.lineWidth = 3*d;
+    ctx.beginPath(); ctx.moveTo(0,-22*d); ctx.lineTo(15*d,16*d); ctx.lineTo(0,8*d); ctx.lineTo(-15*d,16*d); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // boussole nord
+    ctx.save(); ctx.translate(W-46*d, H-46*d);
+    if (headUp) ctx.rotate(th);
+    ctx.fillStyle = '#e5322d'; ctx.beginPath(); ctx.moveTo(0,-16*d); ctx.lineTo(7*d,4*d); ctx.lineTo(-7*d,4*d); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = (13*d)+'px Segoe UI'; ctx.textAlign='center'; ctx.fillText('N', 0, 20*d);
+    ctx.restore();
+  }
+
+  // Source 1 : plugin CarPlay (port 8777). Source 2 : ETS2 Telemetry Server déjà compilé (port 25555), sans rien compiler.
+  const FB = 'http://127.0.0.1:' + (q.get('fbport') || 25555) + '/api/ets2/telemetry';
+  let mode = null;
+  const secs = s => s ? (Date.parse(s) - Date.parse('0001-01-01T00:00:00Z')) / 1000 : 0;
+  function conv(j){
+    const t = j.truck || {}, n = j.navigation || t.navigation || {}, pl = t.placement || {}, jb = j.job || {}, tr = j.trailer || {}, g = j.game || {};
+    const gt = g.time ? new Date(g.time) : null;
+    return { speed: t.speed || 0, limit: n.speedLimit || 0, navDist: n.estimatedDistance || 0, navTime: secs(n.estimatedTime),
+             gameTime: gt ? gt.getUTCHours()*60 + gt.getUTCMinutes() : 0, fuelRange: 0,
+             x: pl.x || 0, z: pl.z || 0, heading: (pl.heading || 0) / 360,
+             from: jb.sourceCity || '', to: jb.destinationCity || '', cargo: tr.name || '' };
+  }
+  async function poll(){
+    try {
+      if (mode !== 'funbit'){
+        try { const r = await fetch(BASE + '/api', {cache:'no-store'}); if (r.ok){ mode = 'plugin'; update(await r.json()); setTimeout(poll, 200); return; } } catch(e){}
+      }
+      const r = await fetch(FB, {cache:'no-store'}); const j = await r.json();
+      mode = 'funbit'; $('media').style.display = 'none';
+      if (j.game && j.game.connected) update(conv(j));
+    } catch(e){}
+    setTimeout(poll, 200);
+  }
+
+  // Mode démo (sans le jeu) : ouvre la page avec ?demo
+  function demo(){
+    let t = 0, x = 0, z = 0, hd = 0.1;
+    setInterval(() => {
+      t += 0.2; hd = (hd + 0.0008) % 1; const v = 22;
+      x += -Math.sin(hd*Math.PI*2)*v*0.2; z += -Math.cos(hd*Math.PI*2)*v*0.2;
+      update({speed:v*3.6, limit:90, navDist:412000 - t*500, navTime:16300 - t*20, gameTime:(600+t)|0, fuelRange:830, x, z, heading:hd, from:'Lyon', to:'Berlin', cargo:'Meubles'});
+    }, 200);
+  }
+
+  draw();
+  DEMO ? demo() : poll();
+})();
+</script>
+</body>
+</html>

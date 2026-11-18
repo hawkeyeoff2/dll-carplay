@@ -1,0 +1,9 @@
+Compiler la DLL gratuitement dans le cloud (rien a installer sur ton PC)
+1. Cree un compte sur github.com, puis un nouveau depot (bouton "New", prive ou public).
+2. "Add file" > "Upload files" : glisse TOUT le contenu de ce dossier (y compris le dossier .github).
+   Si .github n'est pas envoye : "Add file" > "Create new file", nom ".github/workflows/build.yml", colle le contenu du fichier build.yml.
+3. Onglet "Actions" > "build-dll" > "Run workflow" (ou ca demarre tout seul apres l'upload). Attends ~2 minutes.
+4. Clique sur l'execution terminee, en bas "Artifacts" > carplay-plugin : telecharge le zip.
+5. Mets carplay_plugin.dll, carplay_plugin.ini et carplay.html dans <ETS2>\bin\win_x64\plugins\
+6. Lance ETS2, accepte le plugin, ouvre http://127.0.0.1:8777
+Si l'execution est rouge : ouvre l'etape en erreur, copie le message et envoie-le moi.
