@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 defaults:
   run:
-    working-directory: carplay_build
+    working-directory: carplay_build/carplay_build
 jobs:
   build:
     runs-on: windows-latest
@@ -27,6 +27,6 @@ jobs:
         with:
           name: carplay-plugin
           path: |
-            carplay_build/carplay_plugin.dll
-            carplay_build/carplay_plugin.ini
-            carplay_build/carplay.html
+            carplay_build/carplay_build/carplay_plugin.dll
+            carplay_build/carplay_build/carplay_plugin.ini
+            carplay_build/carplay_build/carplay.html
